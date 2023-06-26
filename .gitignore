@@ -1,0 +1,6 @@
+members.db
+tracks.db
+/.idea/
+/venv/
+/__pycache__/
+/functions/__pycache__/
