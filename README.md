@@ -19,7 +19,7 @@ python main.py
 
 # Start
 To start using the bot:
-+ create an environment variable with a token for the bot (Get the token from [@BotFather](https://t.me/BotFather))
++ Create an environment variable named 'TOKEN' with the token for the bot [@BotFather](https://t.me/BotFather))
 
 + download [ffmpeg](https://ffmpeg.org/) and add the absolute path to 'ffmpeg.exe' to the ``functions/loader.py``
 ```
