@@ -9,3 +9,5 @@ kb_client.row(b4, b5)
 kb_client.row(b1)
 kb_client.row(b2)
 kb_client.row(b3)
+
+kb_restart = ReplyKeyboardMarkup(resize_keyboard=True).row(KeyboardButton("/start"))

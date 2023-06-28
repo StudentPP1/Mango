@@ -9,14 +9,13 @@ from helpfunctions import add_id, clear
 from functions.loader import download
 
 bot = settings["BOT"]
-group_id = settings["GROUP_ID"]
 
 
-def load_track(name, message_id):
+def load_track(user_id, name, message_id):
     with sqlite3.connect("tracks.db") as con:
         cur = con.cursor()
-        cur.execute("""CREATE TABLE IF NOT EXISTS tracks (name TEXT, message_id INTEGER)""")
-        cur.execute("""INSERT INTO tracks VALUES (?, ?)""", (name, message_id,))
+        cur.execute(f"""CREATE TABLE IF NOT EXISTS tracks_{user_id} (name TEXT, message_id INTEGER)""")
+        cur.execute(f"""INSERT OR IGNORE INTO tracks_{user_id} VALUES (?, ?)""", (name, message_id,))
 
 
 class FSMALoader(StatesGroup):
@@ -24,16 +23,25 @@ class FSMALoader(StatesGroup):
 
 
 async def start_loader(message: types.Message):
-    await clear(message)
+    user_id = message.from_user.id
+    await clear(user_id)
+
     msg = await message.reply("Enter the url: ")
-    add_id(msg.message_id)
-    add_id(message.message_id)
+    add_id(user_id, msg.message_id)
+    add_id(user_id, message.message_id)
+
     print(message.message_id, type(message.message_id))
     await FSMALoader.url.set()
 
 
 async def input_url(message: types.Message, state: FSMContext):
-    add_id(message.message_id)
+    user_id = message.from_user.id
+
+    with sqlite3.connect("users.db") as con:
+        cur = con.cursor()
+        group_id = cur.execute("""SELECT group_id FROM users WHERE user_id == (?);""", (user_id,)).fetchone()[0]
+
+    add_id(user_id, message.message_id)
 
     print(message.message_id, type(message.message_id))
     try:
@@ -45,18 +53,17 @@ async def input_url(message: types.Message, state: FSMContext):
 
             msg1 = await bot.send_media_group(chat_id=group_id, media=media)
 
-            load_track(music_file.split('\\')[-1], msg1[0]["message_id"])
+            load_track(user_id, music_file.split('\\')[-1], msg1[0]["message_id"])
 
             msg2 = await message.reply("Done")
 
-            add_id(msg2.message_id)
+            add_id(user_id, msg2.message_id)
             os.remove(music_file)
 
     except Exception as ex:
         print(ex)
-
         msg = await message.reply("Sorry, I have some problem with this url, please try other url")
-        add_id(msg.message_id)
+        add_id(user_id, msg.message_id)
 
     await state.finish()
 

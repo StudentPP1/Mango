@@ -12,15 +12,13 @@ import sqlite3
 from helpfunctions import add_id, clear
 
 bot = settings["BOT"]
-chat_id = settings["CHAT_ID"]
-group_id = settings["GROUP_ID"]
 
 
-def create_playlist(name, message_id):
+def create_playlist(user_id, playlist_name, track_name, message_id):
     with sqlite3.connect("tracks.db") as con:
         cur = con.cursor()
-        cur.execute(f"""CREATE TABLE IF NOT EXISTS {name} (message_id INTEGER)""")
-        cur.execute(f"""INSERT OR IGNORE INTO {name} VALUES (?)""", (message_id,))
+        cur.execute(f"""CREATE TABLE IF NOT EXISTS {playlist_name}_{user_id} (name TEXT, message_id INTEGER)""")
+        cur.execute(f"""INSERT OR IGNORE INTO {playlist_name}_{user_id} VALUES (?, ?)""", (track_name, message_id,))
 
 
 class FSMACreatePlaylist(StatesGroup):
@@ -28,64 +26,58 @@ class FSMACreatePlaylist(StatesGroup):
 
 
 async def start_creating(message: types.Message):
-    await clear(message)
+    await clear(message.from_user.id)
     msg = await message.reply("Enter the name of new playlist: ")
 
-    add_id(msg.message_id)
-    add_id(message.message_id)
+    add_id(message.from_user.id, msg.message_id)
+    add_id(message.from_user.id, message.message_id)
 
     await FSMACreatePlaylist.name.set()
 
 
 async def name_and_choose(message: types.Message, state: FSMContext):
+    user_id = message.from_user.id
+
     if len(message.text) > 10:
         msg = await message.answer("Try again")
-        add_id(msg.message_id)
+        add_id(user_id, msg.message_id)
         await state.finish()
     else:
         msg = await message.answer("Choose tracks: ")
-        add_id(message.message_id)
-        add_id(msg.message_id)
-        try:
-            with sqlite3.connect("tracks.db") as con:
-                cur = con.cursor()
+        add_id(user_id, msg.message_id)
+        add_id(user_id, message.message_id)
 
-                for message_id in cur.execute("""SELECT * FROM tracks""").fetchall():
-                    print(message_id)
-                    text = str(message_id[0]).replace(".mp3", "")
-                    translator = Translator(service_urls=['translate.googleapis.com'])
-                    text = translator.translate(text[:35], dest="en").text
-                    text = re.sub('[^a-zA-Z0123456789+-~ ]', '', text).replace('_', '')
-                    # if len(text) > 40:
-                    #     translator = Translator(service_urls=['translate.googleapis.com'])
-                    #     text = translator.translate(text[:40], dest="en").text
-                    #     text = re.sub('[^a-zA-Z0123456789+-~ ]', '', text)
-                    #     text = text.replace('_', '')
+        with sqlite3.connect("tracks.db") as con:
+            cur = con.cursor()
 
-                    callback_data = f"save_{text}_{message.text}_{message_id[1]}"
+            for track_message in cur.execute(f"""SELECT * FROM tracks_{user_id}""").fetchall():
+                print(track_message)
+                text = str(track_message[0]).replace(".mp3", "")
+                # translator = Translator(service_urls=['translate.googleapis.com'])
+                # text = translator.translate(text[:35], dest="en").text
+                text = re.sub('[^А-яа-яа-яА-яa-zA-Z() ]', '', text).replace('_', '')[:20]
+                print(text)
+                callback_data = f"save_{text}_{message.text}_{track_message[1]}_{user_id}"
 
-                    print(callback_data)
-                    msg = await message.answer(f"{text}", reply_markup=InlineKeyboardMarkup().add(
-                         InlineKeyboardButton(text="+", callback_data=callback_data)))
-                    add_id(msg.message_id)
-
-        except Exception as ex:
-            print(ex)
-            msg = await message.answer("Please add some tracks and come back: ")
-            add_id(msg.message_id)
+                print(callback_data)
+                msg = await message.answer(text, reply_markup=InlineKeyboardMarkup().add(
+                        InlineKeyboardButton(text="+", callback_data=callback_data)))
+                add_id(user_id, msg.message_id)
+        # msg = await message.answer("Please add some tracks and come back: ")
+        # add_id(user_id, msg.message_id)
 
         await state.finish()
 
 
 async def save_track(callback: types.CallbackQuery):
     try:
-        _, track_name, name, track_id = callback.data.split('_')
-        create_playlist(name, int(track_id))
+        _, track_name, playlist_name, track_id, user_id = callback.data.split('_')
+        create_playlist(int(user_id), playlist_name, track_name, int(track_id))
 
-        await callback.answer(f"Track: {track_name} saved to {name}")
+        await callback.answer(f"Track: {track_name} saved to {playlist_name}")
     except Exception as ex:
         print(ex)
-        msg = await callback.answer("Wrong name of playlist: ")
+        await callback.answer("Wrong name of playlist: ")
 
 
 def register_handlers(dp: Dispatcher):

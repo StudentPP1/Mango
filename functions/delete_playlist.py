@@ -7,37 +7,36 @@ from helpfunctions import add_id, clear
 import sqlite3
 
 bot = settings["BOT"]
-chat_id = settings["CHAT_ID"]
-group_id = settings["GROUP_ID"]
 
 
 async def start_deleting(message: types.Message):
-    await clear(message)
+    user_id = message.from_user.id
+    await clear(user_id)
 
     msg = await message.answer("Choose playlist: ")
-    add_id(msg.message_id)
-    add_id(message.message_id)
+    add_id(user_id, msg.message_id)
+    add_id(user_id, message.message_id)
 
     with sqlite3.connect("tracks.db") as con:
         cur = con.cursor()
         cur.execute("SELECT name FROM sqlite_master WHERE type='table';")
         count = 1
         for playlist in cur.fetchall():
-            if playlist[0] != "tracks":
+            if playlist[0] != f"tracks_{user_id}" and str(user_id) in playlist[0]:
                 callback_data = f"delete_{playlist[0]}"
                 print(callback_data)
                 msg = await message.answer(f"{count}: ", reply_markup=InlineKeyboardMarkup().add(
-                    InlineKeyboardButton(text=playlist[0], callback_data=callback_data)))
-                add_id(msg.message_id)
+                    InlineKeyboardButton(text=playlist[0].split('_')[0], callback_data=callback_data)))
+                add_id(user_id, msg.message_id)
                 count += 1
 
 
 async def delete_playlist(callback: types.CallbackQuery):
-    _, playlist_name = callback.data.split('_')
+    _, playlist_name, user_id = callback.data.split('_')
 
     with sqlite3.connect("tracks.db") as con:
         cur = con.cursor()
-        cur.execute(f"DROP TABLE {playlist_name};")
+        cur.execute(f"DROP TABLE {playlist_name}_{user_id};")
 
     await callback.answer(f"Playlist: {playlist_name} deleted")
 

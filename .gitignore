@@ -1,5 +1,6 @@
 members.db
 tracks.db
+users.db
 /.idea/
 /venv/
 /__pycache__/
