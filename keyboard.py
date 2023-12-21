@@ -11,3 +11,8 @@ kb_client.row(b2)
 kb_client.row(b3)
 
 kb_restart = ReplyKeyboardMarkup(resize_keyboard=True).row(KeyboardButton("/start"))
+
+kb_delete_music = ReplyKeyboardMarkup(resize_keyboard=True)\
+    .row(KeyboardButton("all music list"))\
+    .row(KeyboardButton("choose playlist"))\
+    .row(KeyboardButton("/start"))

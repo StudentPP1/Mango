@@ -6,6 +6,8 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from helpfunctions import add_id, clear
 import sqlite3
 
+from keyboard import kb_client
+
 bot = settings["BOT"]
 
 
@@ -13,11 +15,12 @@ async def start_deleting(message: types.Message):
     user_id = message.from_user.id
     await clear(user_id)
 
-    msg = await message.answer("Choose playlist: ")
+    msg = await message.answer("Choose playlist: ", reply_markup=kb_client)
     add_id(user_id, msg.message_id)
     add_id(user_id, message.message_id)
 
-    with sqlite3.connect("tracks.db") as con:
+    is_send = False
+    with sqlite3.connect("playlist.db") as con:
         cur = con.cursor()
         cur.execute("SELECT name FROM sqlite_master WHERE type='table';")
         count = 1
@@ -29,12 +32,17 @@ async def start_deleting(message: types.Message):
                     InlineKeyboardButton(text=playlist[0].split('_')[0], callback_data=callback_data)))
                 add_id(user_id, msg.message_id)
                 count += 1
+                is_send = True
+
+    if not is_send:
+        msg = await message.answer("Please create a playlist: ", reply_markup=kb_client)
+        add_id(user_id, msg.message_id)
 
 
 async def delete_playlist(callback: types.CallbackQuery):
     _, playlist_name, user_id = callback.data.split('_')
 
-    with sqlite3.connect("tracks.db") as con:
+    with sqlite3.connect("playlist.db") as con:
         cur = con.cursor()
         cur.execute(f"DROP TABLE {playlist_name}_{user_id};")
 

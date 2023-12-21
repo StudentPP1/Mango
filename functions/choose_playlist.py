@@ -6,6 +6,8 @@ from aiogram.dispatcher.filters import Text
 from helpfunctions import add_id, clear
 import sqlite3
 
+from keyboard import kb_client
+
 bot = settings["BOT"]
 
 
@@ -17,7 +19,8 @@ async def choose_playlist(message: types.Message):
     add_id(user_id, msg.message_id)
     add_id(user_id, message.message_id)
 
-    with sqlite3.connect("tracks.db") as con:
+    is_send = False
+    with sqlite3.connect("playlist.db") as con:
         cur = con.cursor()
         cur.execute("SELECT name FROM sqlite_master WHERE type='table';")
         count = 1
@@ -29,28 +32,33 @@ async def choose_playlist(message: types.Message):
                     InlineKeyboardButton(text=playlist[0].split('_')[0], callback_data=callback_data)))
                 add_id(user_id, msg.message_id)
                 count += 1
+                is_send = True
+
+    if not is_send:
+        msg = await message.answer("Please create a playlist: ", reply_markup=kb_client)
+        add_id(user_id, msg.message_id)
 
 
 async def send_playlist(callback: types.CallbackQuery):
     _, playlist_name, user_id = callback.data.split('_')
     await clear(user_id)
 
-    msg = await bot.send_message(int(user_id), f"Playlist: {playlist_name}")
+    msg = await bot.send_message(int(user_id), f"Playlist: {playlist_name}", reply_markup=kb_client)
     add_id(int(user_id), msg.message_id)
 
     with sqlite3.connect("users.db") as con:
         cur = con.cursor()
         group_id = cur.execute("""SELECT group_id FROM users WHERE user_id == (?);""", (user_id,)).fetchone()[0]
 
-    with sqlite3.connect("tracks.db") as con:
+    with sqlite3.connect("playlist.db") as con:
         cur = con.cursor()
         for message_id in cur.execute(f"SELECT * FROM {playlist_name}_{user_id}").fetchall():
-            msg = await bot.forward_message(user_id, group_id, message_id[1])
+            msg = await bot.forward_message(user_id, group_id, message_id[0])
             add_id(int(user_id), msg.message_id)
+
     await callback.answer()
 
 
 def register_handlers(dp: Dispatcher):
     dp.register_callback_query_handler(send_playlist, Text(startswith="choose_"))
     dp.register_message_handler(choose_playlist, lambda message: "Choose playlist" in message.text, state=None)
-

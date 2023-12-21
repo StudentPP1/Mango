@@ -11,6 +11,21 @@ bot = settings["BOT"]
 dp = settings["DISPATCHER"]
 
 
+def check(chat_id):
+    with sqlite3.connect("users.db") as con:
+        cur = con.cursor()
+        info = cur.execute("""SELECT * FROM users""").fetchone()
+        if not (info is None):
+            for group_id in cur.execute("""SELECT group_id FROM users""").fetchall():
+                if group_id[0] == chat_id:
+                    user_id = cur.execute("""SELECT user_id FROM users WHERE group_id == (?);""", (chat_id,)
+                                          ).fetchone()[0]
+                    return user_id
+            return None
+        else:
+            return None
+
+
 async def on_startup(_):
     print("Bot connected")
 
@@ -51,6 +66,10 @@ async def start(message: types.Message):
         else:
             await message.delete()
             await clear(message.from_user.id)
+            await bot.send_message(message.from_user.id, "Hello it's music bot in which you can:\n"
+                                                         "1) Make or delete playlists\n"
+                                                         "2) Add or del music from playlists\n"
+                                                         "Enjoy listening!)", reply_markup=kb_client)
 
 
 @dp.my_chat_member_handler()  # detected creating group with bot
@@ -90,7 +109,7 @@ async def my_chat_member(message: types.Message) -> None:
                     for group_id in cur.execute("""SELECT group_id FROM users""").fetchall():
                         if message.chat.id == group_id[0]:
                             user_id = cur.execute("""SELECT user_id FROM users WHERE group_id == (?);""",
-                                                    (group_id[0],)).fetchone()
+                                                  (group_id[0],)).fetchone()
 
                             await clear(user_id[0])
                             await bot.send_message(user_id[0], "To get started you need to create a group with the bot "
@@ -106,32 +125,28 @@ async def my_chat_member(message: types.Message) -> None:
 async def forward_audio(message: types.Message):
     chat_id = message.chat.id
 
-    def check(chat_id):
-        with sqlite3.connect("users.db") as con:
-            cur = con.cursor()
-            info = cur.execute("""SELECT * FROM users""").fetchone()
-            if not (info is None):
-                print(f"Bot kicked from {message.chat.id}")
-                for group_id in cur.execute("""SELECT group_id FROM users""").fetchall():
-                    if group_id[0] == chat_id:
-                        user_id = cur.execute("""SELECT user_id FROM users WHERE group_id == (?);""", (chat_id,)
-                                              ).fetchone()[0]
-                        return user_id
-                return None
-            else:
-                return None
-
     user_id = check(chat_id)
     if not (user_id is None):
+
+        with sqlite3.connect("users.db") as con:
+            cur = con.cursor()
+            group_id = cur.execute(f"""SELECT group_id FROM users WHERE user_id == {user_id}""").fetchone()[0]
+
         msg_id = message.message_id
         text = str(message.audio.as_json()).split(':')[2].split(",")[0].replace(".mp3", '').replace('"', '')
 
         print(chat_id, msg_id, text)
-        with sqlite3.connect("tracks.db") as con:
+        with sqlite3.connect("music.db") as con:
             cur = con.cursor()
-            # table name -- user_id + name of playlist
-            cur.execute(f"""CREATE TABLE IF NOT EXISTS tracks_{user_id} (name TEXT, message_id INTEGER)""")
-            cur.execute(f"""INSERT INTO tracks_{user_id} VALUES (?, ?)""", (text, msg_id,))
+            cur.execute(f"""CREATE TABLE IF NOT EXISTS music (
+                   group_id INTEGER,
+                   user_id INTEGER,
+                   track_name TEXT,
+                   message_id INTEGER
+                   )""")
+
+            cur.execute(f"""INSERT OR IGNORE INTO music VALUES (?, ?, ?, ?)""",
+                        (group_id, user_id, text, msg_id,))
     else:
         await message.delete()
 
